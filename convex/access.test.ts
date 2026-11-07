@@ -125,6 +125,52 @@ describe("convex/access", () => {
     });
   });
 
+  it("löst Gruppencodes so oft ein, wie maxRedemptions erlaubt", async () => {
+    const t = createTestHarness();
+    expect(
+      await t.mutation(api.access.createAccessCodes, {
+        adminSecret: "test-secret",
+        codes: ["gruppen-code"],
+        identityLabel: "Klasse FI25",
+        maxRedemptions: 2,
+      }),
+    ).toEqual({ inserted: 1 });
+    const first = await signIn(t, { subject: "user_gruppe_1" });
+    const second = await signIn(t, { subject: "user_gruppe_2" });
+    const third = await signIn(t, { subject: "user_gruppe_3" });
+
+    expect(await redeemCode(first, "gruppen-code")).toMatchObject({ ok: true });
+    expect(
+      await t.query(api.access.checkAccessCode, { code: "gruppen-code" }),
+    ).toEqual({ status: "valid" });
+    expect(await redeemCode(second, "gruppen-code")).toMatchObject({
+      ok: true,
+    });
+    expect(await redeemCode(third, "gruppen-code")).toMatchObject({
+      ok: false,
+      reason: "already_used",
+    });
+    expect(
+      await t.query(api.access.checkAccessCode, { code: "gruppen-code" }),
+    ).toEqual({ status: "already_used" });
+    expect(await second.query(api.users.viewer, {})).toMatchObject({
+      activated: true,
+    });
+  });
+
+  it("lehnt ungültige maxRedemptions ab", async () => {
+    const t = createTestHarness();
+
+    await expect(
+      t.mutation(api.access.createAccessCodes, {
+        adminSecret: "test-secret",
+        codes: ["kaputt-code"],
+        identityLabel: "Klasse FI25",
+        maxRedemptions: 0,
+      }),
+    ).rejects.toThrowError("maxRedemptions muss eine ganze Zahl ab 1 sein.");
+  });
+
   it("verwendet ohne E-Mail eine kontobasierte analyticsDistinctId", async () => {
     const t = createTestHarness();
     await insertAccessCode(t, { code: "ohne-email" });
@@ -178,6 +224,35 @@ describe("convex/access", () => {
     expect(await redeemCode(asUser, "pruef-code")).toMatchObject({ ok: true });
     expect(
       await t.query(api.access.checkAccessCode, { code: "pruef-code" }),
+    ).toEqual({ status: "already_used" });
+  });
+
+  it("findet Magic-Link-Codes ohne Präfix und alte Codes in gemischter Schreibweise", async () => {
+    const t = createTestHarness();
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("accessCodes", {
+        code: "Q48ABC12",
+        normalizedCode: "SMARTNOTES-Q48ABC12",
+        createdAt: now,
+      });
+      await ctx.db.insert("accessCodes", {
+        code: "Elevatic",
+        normalizedCode: "Elevatic",
+        createdAt: now,
+      });
+    });
+
+    for (const code of ["q48abc12", "SMARTNOTES-Q48ABC12", "Elevatic"]) {
+      expect(await t.query(api.access.checkAccessCode, { code })).toEqual({
+        status: "valid",
+      });
+    }
+
+    const asUser = await signIn(t, { subject: "user_alter_code" });
+    expect(await redeemCode(asUser, " Elevatic ")).toMatchObject({ ok: true });
+    expect(
+      await t.query(api.access.checkAccessCode, { code: "Elevatic" }),
     ).toEqual({ status: "already_used" });
   });
 

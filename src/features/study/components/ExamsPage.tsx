@@ -12,6 +12,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { AccountButton } from "./AccountButton";
 import { BrandLogo } from "./BrandLogo";
 import {
   CreateExamDialog,
@@ -98,9 +99,13 @@ export function ExamsPage({
   return (
     <div className="app-glow text-ink min-h-dvh">
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-6 md:px-8">
-        <BrandLogo logoImage={logoImage} />
-        <div className="flex items-center gap-2">
+        {/* Am Handy passen Schriftzug und vier Buttons nicht in eine Zeile. */}
+        <div className="[&_.brand-word]:hidden sm:[&_.brand-word]:inline">
+          <BrandLogo logoImage={logoImage} />
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <ThemeToggle preference={preference} setPreference={setPreference} />
+          <AccountButton />
           <button
             type="button"
             onClick={() => void onSignOut()}

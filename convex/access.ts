@@ -36,20 +36,46 @@ export type RedeemAccessCodeTransactionResult =
 export const normalizeAccessCode = (rawCode: string) =>
   rawCode.trim().replace(/\s+/g, "-").toUpperCase();
 
-const lookupAccessCode = (ctx: QueryCtx, normalizedCode: string) =>
-  ctx.db
-    .query("accessCodes")
-    .withIndex("by_normalizedCode", (q) =>
-      q.eq("normalizedCode", normalizedCode),
-    )
-    .first();
+/** Präfix, mit dem das Admin-Tool Magic-Link-Codes speichert. */
+const MAGIC_LINK_CODE_PREFIX = "SMARTNOTES-";
+
+/**
+ * Sucht einen Code in allen Formen, in denen er gespeichert sein kann: in
+ * Großbuchstaben, so wie getippt (ältere, von Hand angelegte Codes) und mit
+ * dem Magic-Link-Präfix, falls nur die acht Zeichen eingegeben wurden.
+ */
+const lookupAccessCode = async (ctx: QueryCtx, rawCode: string) => {
+  const normalizedCode = normalizeAccessCode(rawCode);
+  const candidates = new Set([
+    normalizedCode,
+    rawCode.trim().replace(/\s+/g, "-"),
+    ...(normalizedCode.startsWith(MAGIC_LINK_CODE_PREFIX)
+      ? []
+      : [MAGIC_LINK_CODE_PREFIX + normalizedCode]),
+  ]);
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const accessCode = await ctx.db
+      .query("accessCodes")
+      .withIndex("by_normalizedCode", (q) => q.eq("normalizedCode", candidate))
+      .first();
+    if (accessCode) {
+      return accessCode;
+    }
+  }
+  return null;
+};
 
 const findAccessCode = async (
   ctx: MutationCtx,
-  normalizedCode: string,
+  rawCode: string,
   now: number,
 ) => {
-  let accessCode = await lookupAccessCode(ctx, normalizedCode);
+  const normalizedCode = normalizeAccessCode(rawCode);
+  let accessCode = await lookupAccessCode(ctx, rawCode);
 
   if (!accessCode) {
     const existingCode = await ctx.db.query("accessCodes").first();
@@ -82,7 +108,7 @@ export const checkAccessCode = query({
       return { status: "unknown_code" as const };
     }
 
-    const accessCode = await lookupAccessCode(ctx, normalizedCode);
+    const accessCode = await lookupAccessCode(ctx, args.code);
     if (!accessCode) {
       // Der Demo-Code entsteht erst beim Einlösen, solange es keine Codes gibt.
       const isSeedableDemoCode =
@@ -104,8 +130,9 @@ export const checkAccessCode = query({
 });
 
 /**
- * Schaltet das angemeldete Konto mit einem Zugangscode frei. Jeder Code
- * funktioniert genau einmal; ein bereits freigeschaltetes Konto braucht keinen.
+ * Schaltet das angemeldete Konto mit einem Zugangscode frei. Ein Code
+ * funktioniert so oft, wie `maxRedemptions` erlaubt (standardmäßig einmal);
+ * ein bereits freigeschaltetes Konto braucht keinen.
  */
 export const redeemAccessCodeTransaction = internalMutation({
   args: {
@@ -129,7 +156,7 @@ export const redeemAccessCodeTransaction = internalMutation({
       } satisfies RedeemAccessCodeTransactionResult;
     }
 
-    const accessCode = await findAccessCode(ctx, normalizedCode, now);
+    const accessCode = await findAccessCode(ctx, args.code, now);
     if (!accessCode) {
       return {
         ok: false,
@@ -148,9 +175,13 @@ export const redeemAccessCodeTransaction = internalMutation({
       } satisfies RedeemAccessCodeTransactionResult;
     }
 
+    const maxRedemptions = accessCode.maxRedemptions ?? 1;
+    const redemptionCount = (accessCode.redemptionCount ?? 0) + 1;
     await ctx.db.patch("accessCodes", accessCode._id, {
-      consumedAt: now,
-      consumedByUserId: user._id,
+      redemptionCount,
+      ...(redemptionCount >= maxRedemptions ? { consumedAt: now } : {}),
+      // Bei Gruppencodes steht die Zuordnung nur am Konto (users.accessCodeId).
+      ...(maxRedemptions === 1 ? { consumedByUserId: user._id } : {}),
     });
     await ctx.db.patch("users", user._id, {
       accessCodeId: accessCode._id,
@@ -178,6 +209,8 @@ export const createAccessCodes = mutation({
     identityLabel: v.string(),
     identityEmail: v.optional(v.string()),
     note: v.optional(v.string()),
+    /** Wie viele Konten jeden Code einlösen dürfen; fehlt: einmal. */
+    maxRedemptions: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const expectedSecret = readRequiredEnv(
@@ -186,6 +219,13 @@ export const createAccessCodes = mutation({
     );
     if (args.adminSecret !== expectedSecret) {
       throw new Error("Ungültiges Admin-Secret.");
+    }
+    const { maxRedemptions } = args;
+    if (
+      maxRedemptions !== undefined &&
+      (!Number.isInteger(maxRedemptions) || maxRedemptions < 1)
+    ) {
+      throw new Error("maxRedemptions muss eine ganze Zahl ab 1 sein.");
     }
 
     const now = Date.now();
@@ -218,6 +258,9 @@ export const createAccessCodes = mutation({
         normalizedCode,
         createdAt: now,
         identityLabel,
+        ...(maxRedemptions !== undefined && maxRedemptions > 1
+          ? { maxRedemptions }
+          : {}),
         ...(identityEmail ? { identityEmail } : {}),
         ...(note ? { note } : {}),
       });

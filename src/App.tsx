@@ -65,20 +65,12 @@ const analyticsStageByStudyStage: Record<StudyStage, AnalyticsStage> = {
 
 type ExamFlowProps = {
   viewer: Viewer;
-  themePreference: ThemePreference;
-  onThemePreferenceChange: (preference: ThemePreference) => void;
   onSignOut: () => Promise<void>;
   isSigningOut: boolean;
 };
 
 /** Eine Prüfung im Ablauf Hochladen → Quiz → Analyse, geöffnet über ihre Adresse. */
-function ExamFlow({
-  viewer,
-  themePreference,
-  onThemePreferenceChange,
-  onSignOut,
-  isSigningOut,
-}: ExamFlowProps) {
+function ExamFlow({ viewer, onSignOut, isSigningOut }: ExamFlowProps) {
   // Die ID kommt aus der Adresse. Convex prüft sie und liefert für fremde
   // oder unbekannte Prüfungen null.
   const sessionId = (useParams().sessionId ?? null) as StudySessionId | null;
@@ -322,8 +314,6 @@ function ExamFlow({
       logoImage={logoImage}
       stage={displayStage}
       examTitle={session.title}
-      preference={themePreference}
-      setPreference={onThemePreferenceChange}
       onSignOut={onSignOut}
       isSigningOut={isSigningOut}
     >
@@ -573,8 +563,6 @@ function StudyApp() {
         element={
           <ExamFlow
             viewer={viewer}
-            themePreference={themePreference}
-            onThemePreferenceChange={handleThemePreferenceChange}
             onSignOut={signOut}
             isSigningOut={isSigningOut}
           />

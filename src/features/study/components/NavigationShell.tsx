@@ -2,17 +2,13 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { LayoutGrid, Loader2, LogOut, Menu, X } from "lucide-react";
-import { AccountSummary } from "./AccountSummary";
 import { BrandLogo } from "./BrandLogo";
 import { StageBadge } from "./StageBadge";
-import { ThemeToggle } from "./ThemeToggle";
-import type { StudyStage, ThemePreference } from "../types";
+import type { StudyStage } from "../types";
 
 type NavigationShellProps = {
   logoImage: string;
   stage: StudyStage;
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => void;
   examTitle: string;
   onSignOut: () => Promise<void>;
   isSigningOut: boolean;
@@ -22,8 +18,6 @@ type NavigationShellProps = {
 export function NavigationShell({
   logoImage,
   stage,
-  preference,
-  setPreference,
   examTitle,
   onSignOut,
   isSigningOut,
@@ -84,14 +78,7 @@ export function NavigationShell({
               />
             </nav>
 
-            <div className="mt-auto space-y-3">
-              <AccountSummary />
-              <div className="flex justify-center pb-2">
-                <ThemeToggle
-                  preference={preference}
-                  setPreference={setPreference}
-                />
-              </div>
+            <div className="border-cream-border mt-auto space-y-3 border-t pt-6">
               <Link
                 to="/"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -142,34 +129,29 @@ export function NavigationShell({
           />
         </nav>
 
-        <div className="mt-auto space-y-2 pt-6">
-          <AccountSummary />
-          <div className="flex justify-center pb-2">
-            <ThemeToggle
-              preference={preference}
-              setPreference={setPreference}
-            />
+        <div className="mt-auto pt-6">
+          <div className="border-cream-border space-y-2 border-t pt-6">
+            <Link
+              to="/"
+              className="pill-button pill-button--quiet text-ink w-full justify-center gap-2"
+            >
+              <LayoutGrid size={14} />
+              Alle Prüfungen
+            </Link>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="pill-button pill-button--quiet w-full justify-center gap-2"
+            >
+              {isSigningOut ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <LogOut size={14} />
+              )}
+              Abmelden
+            </button>
           </div>
-          <Link
-            to="/"
-            className="pill-button pill-button--quiet text-ink w-full justify-center gap-2"
-          >
-            <LayoutGrid size={14} />
-            Alle Prüfungen
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={isSigningOut}
-            className="pill-button pill-button--quiet w-full justify-center gap-2"
-          >
-            {isSigningOut ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <LogOut size={14} />
-            )}
-            Abmelden
-          </button>
         </div>
       </aside>
 

@@ -51,12 +51,14 @@ const analysisValidator = v.object({
 });
 
 export default defineSchema({
-  /** Einmal-Zugangscodes (z.B. für Demos oder zeitlich begrenzten Zugriff) */
+  /** Zugangscodes, standardmäßig einmalig, für Gruppen auch mehrfach einlösbar */
   accessCodes: defineTable({
     code: v.string(),
     normalizedCode: v.string(), // Code in Großbuchstaben zur einfachen Suche
     createdAt: v.number(),
-    consumedAt: v.optional(v.number()),
+    maxRedemptions: v.optional(v.number()), // Fehlt: genau eine Einlösung.
+    redemptionCount: v.optional(v.number()),
+    consumedAt: v.optional(v.number()), // Gesetzt, sobald alle Einlösungen verbraucht sind.
     consumedByGrantId: v.optional(v.id("accessGrants")), // Legacy: Einlösung vor Clerk.
     consumedByUserId: v.optional(v.id("users")),
     identityLabel: v.optional(v.string()),
