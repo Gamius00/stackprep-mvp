@@ -130,7 +130,7 @@ export function ExamsPage({
               Deine Prüfungen
             </p>
             <h1 className="text-3xl leading-tight font-medium tracking-[-0.045em] md:text-5xl">
-              Worauf lernst du gerade?
+              Wofür lernst du gerade?
             </h1>
           </div>
           {exams && exams.length > 0 && createButton}
